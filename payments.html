@@ -10869,7 +10869,8 @@
     }, { passive: true });
   </script>
   <script>
-    window._supaLiveKeys = ['children','payments','centerPayments','refunds','records','therapists','intake_list','assessment_tokens','initial_assessments','voucher_data'];
+    // 납부관리 페이지에서 실제 사용하는 키만 로드 (records/intake/assessment/voucher 제외)
+    window._supaLiveKeys = ['children','payments','centerPayments','refunds','therapists'];
     window._supaLiveOnLoad = () => { try { renderAll(); } catch(e) {} };
   </script>
   <script src="js/supabase-live.js"></script>
