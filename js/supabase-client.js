@@ -81,11 +81,17 @@
   // → updated_at 대량 갱신 방지
   const _lastPushSnapshot = {};
 
+  // ⚠️ diff key 는 updated_at 을 제외한 실제 데이터만 사용
+  //   (toRow 는 매번 new Date() 로 updated_at 을 찍으므로 diff 가 항상 전체 변경으로 오인)
+  function _diffKey(cfg, r) {
+    const row = toRow(cfg, r);
+    return JSON.stringify(row.data);   // updated_at 제외
+  }
   function _buildSnapshot(cfg, raw) {
     const map = new Map();
     raw.forEach(r => {
       const row = toRow(cfg, r);
-      if (row.id != null && row.id !== '') map.set(row.id, JSON.stringify(row));
+      if (row.id != null && row.id !== '') map.set(row.id, JSON.stringify(row.data));
     });
     return map;
   }
@@ -107,7 +113,7 @@
     // ⭐ diff push: 이전 snapshot 과 비교해 변경된 row 만 upsert
     const snap = _lastPushSnapshot[key];
     if (snap && cfg.idKey !== false) {
-      const changed = rows.filter(r => snap.get(r.id) !== JSON.stringify(r));
+      const changed = rows.filter(r => snap.get(r.id) !== JSON.stringify(r.data));
       if (changed.length === 0) {
         console.log(`[pushKey] ${cfg.table}: 변경 없음 → skip`);
         return { table: cfg.table, count: 0, dupCount };
