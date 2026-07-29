@@ -76,6 +76,20 @@
     return { rows: [...map.values(), ...noId], dupCount };
   }
 
+  // ⭐ diff push snapshot: key → Map<id, JSON.stringify(row)>
+  // pushKey 호출 시 스냅샷과 비교해 실제 변경된 row 만 upsert
+  // → updated_at 대량 갱신 방지
+  const _lastPushSnapshot = {};
+
+  function _buildSnapshot(cfg, raw) {
+    const map = new Map();
+    raw.forEach(r => {
+      const row = toRow(cfg, r);
+      if (row.id != null && row.id !== '') map.set(row.id, JSON.stringify(row));
+    });
+    return map;
+  }
+
   // localStorage 의 특정 key 를 Supabase 로 업로드 (배열 → 각 row 로 upsert)
   async function pushKey(key) {
     const cfg = KEY_TABLE[key];
@@ -90,6 +104,17 @@
       rows = dedup.rows;
       dupCount = dedup.dupCount;
     }
+    // ⭐ diff push: 이전 snapshot 과 비교해 변경된 row 만 upsert
+    const snap = _lastPushSnapshot[key];
+    if (snap && cfg.idKey !== false) {
+      const changed = rows.filter(r => snap.get(r.id) !== JSON.stringify(r));
+      if (changed.length === 0) {
+        console.log(`[pushKey] ${cfg.table}: 변경 없음 → skip`);
+        return { table: cfg.table, count: 0, dupCount };
+      }
+      console.log(`[pushKey] ${cfg.table}: ${changed.length}/${rows.length} 건 변경 → 해당 row 만 upsert`);
+      rows = changed;
+    }
     // 배치 upsert (500건씩) — id 없는 테이블(voucher_data)은 그냥 insert
     let count = 0;
     for (let i = 0; i < rows.length; i += 500) {
@@ -102,6 +127,10 @@
       }
       if (res.error) throw new Error(`${cfg.table}: ${res.error.message}`);
       count += chunk.length;
+    }
+    // snapshot 갱신 (다음 push 의 diff 기준)
+    if (cfg.idKey !== false) {
+      _lastPushSnapshot[key] = _buildSnapshot(cfg, raw);
     }
     return { table: cfg.table, count, dupCount };
   }
@@ -197,6 +226,10 @@
     }
 
     localStorage.setItem(key, JSON.stringify(all));
+    // ⭐ pull 직후 snapshot 초기화 → 첫 push 부터 diff 적용
+    if (cfg.idKey !== false) {
+      _lastPushSnapshot[key] = _buildSnapshot(cfg, all);
+    }
     return { table: cfg.table, count: all.length };
   }
 
