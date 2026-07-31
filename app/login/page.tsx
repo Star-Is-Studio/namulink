@@ -3,7 +3,35 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "@/lib/context/AuthContext";
+import { useAuth, UserSession } from "@/lib/context/AuthContext";
+
+// 기본 등록된 유저 샘플 데이터베이스 (DB / LocalStorage 회원가입 유저와 동시 검증)
+const INITIAL_USERS: (UserSession & { password_hash: string })[] = [
+  {
+    name: "박하은",
+    role: "admin",
+    username: "박하은2607",
+    password_hash: "0315",
+    phone: "010-8807-5299",
+    centerName: "자라는나무 아동발달센터 대전점",
+  },
+  {
+    name: "이채린",
+    role: "therapist",
+    username: "이채린2504",
+    password_hash: "0412",
+    phone: "010-2465-4705",
+    centerName: "자라는나무 아동발달센터 대전점",
+  },
+  {
+    name: "박운지",
+    role: "parent",
+    username: "010-8807-5299",
+    password_hash: "1234",
+    phone: "010-8807-5299",
+    centerName: "자라는나무 아동발달센터 대전점",
+  },
+];
 
 function LoginForm() {
   const router = useRouter();
@@ -27,17 +55,51 @@ function LoginForm() {
       return;
     }
 
-    login({
-      name: username.includes("박하은") ? "박하은" : username,
-      role: role === "staff" ? "admin" : "parent",
-      username,
-      centerName: "자라는나무 아동발달센터 대전점",
+    // 로컬스토리지에 저장된 신규 회원가입 유저 목록 불러오기
+    let registeredUsers: (UserSession & { password_hash: string })[] = [...INITIAL_USERS];
+    try {
+      const customUsers = localStorage.getItem("namulink_registered_users");
+      if (customUsers) {
+        registeredUsers = [...registeredUsers, ...JSON.parse(customUsers)];
+      }
+    } catch {
+      // ignore
+    }
+
+    // 유저 검증 (등록된 유저인지 확인)
+    const foundUser = registeredUsers.find((u) => {
+      const matchUsername =
+        u.username.trim().toLowerCase() === username.trim().toLowerCase() ||
+        (u.phone && u.phone.trim() === username.trim());
+      const matchPassword = u.password_hash === password.trim();
+
+      if (role === "staff") {
+        return matchUsername && matchPassword && (u.role === "admin" || u.role === "therapist" || u.role === "staff");
+      } else {
+        return matchUsername && matchPassword && u.role === "parent";
+      }
     });
 
-    if (role === "staff") {
-      router.push("/dashboard/children");
-    } else {
+    if (!foundUser) {
+      setError(
+        "❌ 등록되지 않은 계정이거나 아이디 또는 비밀번호가 올바르지 않습니다. 회원가입 후 진행해 주세요."
+      );
+      return;
+    }
+
+    // 로그인 성공 시 세션 생성 및 이동
+    login({
+      name: foundUser.name,
+      role: foundUser.role,
+      username: foundUser.username,
+      phone: foundUser.phone,
+      centerName: foundUser.centerName || "자라는나무 아동발달센터 대전점",
+    });
+
+    if (foundUser.role === "parent") {
       router.push("/parent-home");
+    } else {
+      router.push("/dashboard/children");
     }
   };
 
@@ -56,7 +118,10 @@ function LoginForm() {
       <div className="flex bg-black/20 p-1 rounded-xl mb-6">
         <button
           type="button"
-          onClick={() => setRole("staff")}
+          onClick={() => {
+            setRole("staff");
+            setError("");
+          }}
           className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
             role === "staff"
               ? "bg-emerald-600 text-white shadow-md"
@@ -67,7 +132,10 @@ function LoginForm() {
         </button>
         <button
           type="button"
-          onClick={() => setRole("parent")}
+          onClick={() => {
+            setRole("parent");
+            setError("");
+          }}
           className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${
             role === "parent"
               ? "bg-teal-600 text-white shadow-md"
@@ -91,7 +159,7 @@ function LoginForm() {
             placeholder={
               role === "staff"
                 ? "예: 박하은2607 · 관리자"
-                : "예: 010-1234-5678"
+                : "예: 010-8807-5299"
             }
             className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/20 text-white placeholder-emerald-200/40 text-sm focus:outline-none focus:border-emerald-400"
           />
@@ -107,15 +175,15 @@ function LoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder={
               role === "staff"
-                ? "생년월일 4자리 (MMDD)"
-                : "초기 비밀번호"
+                ? "비밀번호 (예: 0315)"
+                : "비밀번호 (예: 1234)"
             }
             className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/20 text-white placeholder-emerald-200/40 text-sm focus:outline-none focus:border-emerald-400"
           />
         </div>
 
         {error && (
-          <p className="text-xs text-rose-400 bg-rose-950/40 p-2.5 rounded-lg border border-rose-500/30">
+          <p className="text-xs text-rose-300 bg-rose-950/60 p-3 rounded-xl border border-rose-500/40 font-medium leading-relaxed">
             {error}
           </p>
         )}
@@ -132,10 +200,18 @@ function LoginForm() {
         </button>
       </form>
 
-      <div className="mt-6 text-center text-xs text-emerald-200/60 border-t border-white/10 pt-4 flex justify-between">
-        <span>아직 계정이 없으신가요?</span>
+      {/* Sample Accounts Notice for Guide */}
+      <div className="mt-4 p-3 bg-black/20 rounded-xl text-[11px] text-emerald-200/80 space-y-1">
+        <p className="font-bold text-emerald-300">💡 등록된 로그인 테스트 계정</p>
+        <p>• <b>직원 관리자</b>: 아이디 <code className="text-white">박하은2607</code> / 암호 <code className="text-white">0315</code></p>
+        <p>• <b>치료사 계정</b>: 아이디 <code className="text-white">이채린2504</code> / 암호 <code className="text-white">0412</code></p>
+        <p>• <b>학부모 계정</b>: 전화 <code className="text-white">010-8807-5299</code> / 암호 <code className="text-white">1234</code></p>
+      </div>
+
+      <div className="mt-4 text-center text-xs text-emerald-200/60 border-t border-white/10 pt-3 flex justify-between">
+        <span>미등록 계정이신가요?</span>
         <Link href="/signup" className="text-emerald-300 font-bold underline">
-          회원가입하기
+          회원가입하기 ➔
         </Link>
       </div>
     </div>

@@ -32,14 +32,30 @@ export default function SignupPage() {
       return;
     }
 
-    // 회원가입 성공 및 세션 저장
-    signup({
+    // 회원가입 유저 목록에 저장
+    const newUser = {
       name,
-      role: role === "staff" ? "admin" : "parent",
+      role: role === "staff" ? ("admin" as const) : ("parent" as const),
       username,
+      password_hash: password,
       phone,
       centerName: "자라는나무 아동발달센터 대전점",
-    });
+    };
+
+    try {
+      const existing = JSON.parse(
+        localStorage.getItem("namulink_registered_users") || "[]"
+      );
+      localStorage.setItem(
+        "namulink_registered_users",
+        JSON.stringify([...existing, newUser])
+      );
+    } catch {
+      // ignore
+    }
+
+    // 회원가입 성공 및 세션 저장
+    signup(newUser);
 
     if (role === "staff") {
       router.push("/dashboard/children");
