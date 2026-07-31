@@ -52,7 +52,6 @@ export default function ChildrenPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // 신규 등록 폼 State
   const [newName, setNewName] = useState("");
   const [newBirth, setNewBirth] = useState("");
   const [newGender, setNewGender] = useState("남");
@@ -96,7 +95,6 @@ export default function ChildrenPage() {
 
   return (
     <div className="space-y-6">
-      {/* Title Bar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -114,7 +112,6 @@ export default function ChildrenPage() {
         </button>
       </div>
 
-      {/* Filter & Search Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200">
         <div className="flex items-center gap-2">
           <input
@@ -143,7 +140,6 @@ export default function ChildrenPage() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
         <table className="w-full text-left text-xs border-collapse">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
@@ -227,7 +223,6 @@ export default function ChildrenPage() {
         </table>
       </div>
 
-      {/* Register Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6 space-y-4">

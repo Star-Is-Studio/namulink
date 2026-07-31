@@ -7,13 +7,11 @@ export default function RecordsPage() {
     "logs" | "plan" | "mid_eval" | "final_eval"
   >("plan");
 
-  // STT 음성인식 상태
   const [isListening, setIsListening] = useState(false);
   const [activityText, setActivityText] = useState(
     "언어 치료 회기 진행: 발음 교정 및 단어 카드 맞추기 수행. 아동의 집중도가 높았으며 호응 반응이 매우 우수함."
   );
 
-  // 음성인식 토글 핸들러 (Web Speech API 연동 인터페이스)
   const toggleSpeechRecognition = () => {
     if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
       alert("현재 브라우저는 음성 인식을 지원하지 않습니다. Chrome 사용을 권장합니다.");
@@ -45,7 +43,6 @@ export default function RecordsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Title Bar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -57,7 +54,6 @@ export default function RecordsPage() {
         </div>
       </div>
 
-      {/* TOP ALWAYS-VISIBLE TABS (요청 기능 1) */}
       <div className="flex flex-wrap items-center bg-white p-2 rounded-2xl border border-slate-200 gap-2 shadow-sm">
         <button
           onClick={() => setActiveTab("logs")}
@@ -104,7 +100,6 @@ export default function RecordsPage() {
         </button>
       </div>
 
-      {/* TAB CONTENT 1: 회차별 일반 치료기록 (STT 음성입력 지원) */}
       {activeTab === "logs" && (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
           <div className="flex justify-between items-center border-b pb-3">
@@ -144,7 +139,6 @@ export default function RecordsPage() {
         </div>
       )}
 
-      {/* TAB CONTENT 2: 제공계획서 */}
       {activeTab === "plan" && (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 gap-4">
@@ -210,7 +204,6 @@ export default function RecordsPage() {
         </div>
       )}
 
-      {/* TAB CONTENT 3: 중간평가보고서 */}
       {activeTab === "mid_eval" && (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 gap-4">
@@ -248,7 +241,6 @@ export default function RecordsPage() {
         </div>
       )}
 
-      {/* TAB CONTENT 4: 종결평가보고서 */}
       {activeTab === "final_eval" && (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-4 gap-4">

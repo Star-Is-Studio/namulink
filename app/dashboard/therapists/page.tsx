@@ -7,11 +7,11 @@ interface TherapistPayrollSummary {
   name: string;
   employmentType: "프리랜서" | "근로계약";
   payRate: string;
-  paidSessions: number;       // 결제 완료 회기 수 (납부관리)
-  actualSessions: number;     // ★ 핵심: 실제 진행 완료 회기 수 (스케줄)
-  unconductedSessions: number;// 미진행(결석/다음달 보강 예정) 회기 수
+  paidSessions: number;
+  actualSessions: number;
+  unconductedSessions: number;
   sessionFee: number;
-  calculatedSalary: number;   // 실제 진행 회기 × 회기단가
+  calculatedSalary: number;
 }
 
 export default function TherapistsPage() {
@@ -27,7 +27,7 @@ export default function TherapistsPage() {
       actualSessions: 14,
       unconductedSessions: 2,
       sessionFee: 39000,
-      calculatedSalary: 546000, // 14회 × 39,000원
+      calculatedSalary: 546000,
     },
     {
       id: "t2",
@@ -38,7 +38,7 @@ export default function TherapistsPage() {
       actualSessions: 20,
       unconductedSessions: 0,
       sessionFee: 42250,
-      calculatedSalary: 845000, // 20회 × 42,250원
+      calculatedSalary: 845000,
     },
     {
       id: "t3",
@@ -49,13 +49,12 @@ export default function TherapistsPage() {
       actualSessions: 10,
       unconductedSessions: 2,
       sessionFee: 35000,
-      calculatedSalary: 350000, // 10회 × 35,000원
+      calculatedSalary: 350000,
     },
   ]);
 
   return (
     <div className="space-y-6">
-      {/* Title Bar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -75,7 +74,6 @@ export default function TherapistsPage() {
         </div>
       </div>
 
-      {/* Rules Banner */}
       <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl text-xs text-blue-900 space-y-1">
         <p className="font-bold flex items-center gap-1">
           <span>⚙️ 급여 정산 핵심 연동 규칙</span>
@@ -85,7 +83,6 @@ export default function TherapistsPage() {
         <p>• <b>정산 원칙</b>: 결제는 되었으나 결석/연기로 미진행된 수업은 급여 정산에서 제외되며, <b>다음 달 보강 진행 완료 시 해당 월 급여에 합산 정산</b>됩니다.</p>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
         <table className="w-full text-left text-xs border-collapse">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">

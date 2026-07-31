@@ -53,7 +53,6 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      {/* Title & Month Selector */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -73,7 +72,6 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      {/* Rules Notice */}
       <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-xs text-emerald-800 space-y-1">
         <p className="font-bold flex items-center gap-1">
           <span>💡 회기 및 보강 자동 제어 규칙</span>
@@ -83,9 +81,7 @@ export default function CalendarPage() {
         <p>• <b>치료사 휴가 및 인수인계</b>: 치료사 휴가 시 수업 자동 휴무 및 보강 필요 탭에 배치되며, 인수인계 아동은 1달간 인계 표기 노출</p>
       </div>
 
-      {/* Main Grid View */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: Schedule Table (2 Cols) */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm p-5 space-y-4">
           <h2 className="font-bold text-sm text-slate-800 flex items-center justify-between">
             <span>🗓 이번 주 수업 일정</span>
@@ -142,7 +138,6 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* Right: Makeup Needed List (1 Col) */}
         <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
           <h2 className="font-bold text-sm text-slate-800 flex items-center gap-2">
             <span>⚡ 보강 관리 & 미진행 수업</span>

@@ -42,7 +42,6 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Title Bar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
@@ -62,7 +61,6 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
         <table className="w-full text-left text-xs border-collapse">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
