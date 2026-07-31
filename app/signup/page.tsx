@@ -40,7 +40,7 @@ export default function SignupPage() {
     try {
       const assignedRole: "admin" | "parent" = role === "staff" ? "admin" : "parent";
 
-      // 1. Supabase DB public.users 테이블에 실제 INSERT
+      // Supabase DB public.users 테이블에 실제 INSERT
       const { data: newUser, error: dbError } = await supabase
         .from("users")
         .insert([
@@ -64,7 +64,6 @@ export default function SignupPage() {
         throw new Error(`Supabase DB 가입 저장 실패: ${dbError.message}`);
       }
 
-      // 2. 가입 성공 시 세션 적용 및 이동
       signup({
         name: newUser.name,
         role: newUser.role,
@@ -207,7 +206,7 @@ export default function SignupPage() {
           </div>
 
           {error && (
-            <p className="text-xs text-rose-300 bg-rose-950/60 p-2.5 rounded-lg border border-rose-500/30">
+            <p className="text-xs text-rose-300 bg-rose-950/60 p-2.5 rounded-lg border border-rose-500/30 font-medium leading-relaxed">
               {error}
             </p>
           )}
