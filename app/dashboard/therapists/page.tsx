@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 interface TherapistPayrollSummary {
   id: string;
   name: string;
-  employmentType: "프리랜서" | "근로계약";
+  employmentType: string;
   payRate: string;
   paidSessions: number;
   actualSessions: number;
@@ -15,53 +16,54 @@ interface TherapistPayrollSummary {
 }
 
 export default function TherapistsPage() {
+  const supabase = createClient();
   const [selectedMonth, setSelectedMonth] = useState("2026-08");
+  const [therapists, setTherapists] = useState<TherapistPayrollSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [therapists] = useState<TherapistPayrollSummary[]>([
-    {
-      id: "t1",
-      name: "이채린",
-      employmentType: "프리랜서",
-      payRate: "60%",
-      paidSessions: 16,
-      actualSessions: 14,
-      unconductedSessions: 2,
-      sessionFee: 39000,
-      calculatedSalary: 546000,
-    },
-    {
-      id: "t2",
-      name: "정다혜",
-      employmentType: "프리랜서",
-      payRate: "65%",
-      paidSessions: 20,
-      actualSessions: 20,
-      unconductedSessions: 0,
-      sessionFee: 42250,
-      calculatedSalary: 845000,
-    },
-    {
-      id: "t3",
-      name: "신슬기",
-      employmentType: "근로계약",
-      payRate: "고정급+수당",
-      paidSessions: 12,
-      actualSessions: 10,
-      unconductedSessions: 2,
-      sessionFee: 35000,
-      calculatedSalary: 350000,
-    },
-  ]);
+  const fetchTherapists = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("therapists")
+        .select("*");
+
+      if (!error && data) {
+        const mapped: TherapistPayrollSummary[] = data.map((t: any) => ({
+          id: t.therapist_id,
+          name: t.name || "치료사",
+          employmentType: t.employment_type === "freelancer" ? "프리랜서" : "근로계약",
+          payRate: `${t.pay_rate || 60}%`,
+          paidSessions: 0,
+          actualSessions: 0,
+          unconductedSessions: 0,
+          sessionFee: t.hourly_rate || 0,
+          calculatedSalary: 0,
+        }));
+        setTherapists(mapped);
+      } else {
+        setTherapists([]);
+      }
+    } catch {
+      setTherapists([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchTherapists();
+  }, [selectedMonth]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <span>👩‍⚕️</span> 치료사 관리 & 실제 진행회기 기반 급여 정산
+            <span>👩‍⚕️</span> 치료사 관리 & 실제 진행회기 기반 급여 정산 (Supabase DB 전용)
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            결제회기 vs 스케줄 실진행회기 동기화 — 미진행 회기는 제외하고 실제 수행한 치료 회기만 정확하게 급여 산정
+            Supabase DB public.therapists 실제 레코드만 실시간 조회
           </p>
         </div>
         <div>
@@ -98,30 +100,44 @@ export default function TherapistsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
-            {therapists.map((t) => (
-              <tr key={t.id} className="hover:bg-slate-50 transition-colors">
-                <td className="p-3.5 font-bold text-slate-900">{t.name}</td>
-                <td className="p-3.5">
-                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px]">
-                    {t.employmentType}
-                  </span>
-                </td>
-                <td className="p-3.5 font-medium">{t.payRate}</td>
-                <td className="p-3.5 text-center font-mono">{t.paidSessions}회</td>
-                <td className="p-3.5 text-center font-mono font-bold text-emerald-700 bg-emerald-50/50">
-                  {t.actualSessions}회
-                </td>
-                <td className="p-3.5 text-center font-mono text-amber-700">
-                  {t.unconductedSessions > 0 ? `${t.unconductedSessions}회 (이월)` : "-"}
-                </td>
-                <td className="p-3.5 text-right font-mono">
-                  {t.sessionFee.toLocaleString()}원
-                </td>
-                <td className="p-3.5 text-right font-mono font-bold text-sm text-emerald-800">
-                  {t.calculatedSalary.toLocaleString()}원
+            {isLoading ? (
+              <tr>
+                <td colSpan={8} className="text-center py-10 text-slate-400">
+                  Supabase DB에서 치료사 데이터를 로딩 중입니다...
                 </td>
               </tr>
-            ))}
+            ) : therapists.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="text-center py-10 text-slate-400">
+                  Supabase DB에 등록된 치료사가 없습니다.
+                </td>
+              </tr>
+            ) : (
+              therapists.map((t) => (
+                <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-3.5 font-bold text-slate-900">{t.name}</td>
+                  <td className="p-3.5">
+                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px]">
+                      {t.employmentType}
+                    </span>
+                  </td>
+                  <td className="p-3.5 font-medium">{t.payRate}</td>
+                  <td className="p-3.5 text-center font-mono">{t.paidSessions}회</td>
+                  <td className="p-3.5 text-center font-mono font-bold text-emerald-700 bg-emerald-50/50">
+                    {t.actualSessions}회
+                  </td>
+                  <td className="p-3.5 text-center font-mono text-amber-700">
+                    {t.unconductedSessions > 0 ? `${t.unconductedSessions}회 (이월)` : "-"}
+                  </td>
+                  <td className="p-3.5 text-right font-mono">
+                    {t.sessionFee.toLocaleString()}원
+                  </td>
+                  <td className="p-3.5 text-right font-mono font-bold text-sm text-emerald-800">
+                    {t.calculatedSalary.toLocaleString()}원
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

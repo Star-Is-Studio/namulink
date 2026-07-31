@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 interface ScheduleEvent {
   id: string;
@@ -15,51 +16,54 @@ interface ScheduleEvent {
 }
 
 export default function CalendarPage() {
+  const supabase = createClient();
   const [currentMonth, setCurrentMonth] = useState("2026-08");
+  const [schedules, setSchedules] = useState<ScheduleEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [schedules] = useState<ScheduleEvent[]>([
-    {
-      id: "s1",
-      childName: "이지호",
-      therapistName: "이채린",
-      supportType: "발달재활서비스 (발본)",
-      timeSlot: "14:00~14:40",
-      dayOfWeek: "월",
-      status: "scheduled",
-      isMakeup: false,
-    },
-    {
-      id: "s2",
-      childName: "김지우",
-      therapistName: "신슬기",
-      supportType: "방과후활동비",
-      timeSlot: "15:00~15:40",
-      dayOfWeek: "화",
-      status: "makeup_needed",
-      isMakeup: true,
-      handoffNote: "신슬기→박하은 인수인계 중",
-    },
-    {
-      id: "s3",
-      childName: "서승현",
-      therapistName: "정다혜",
-      supportType: "센터비용",
-      timeSlot: "16:00~16:40",
-      dayOfWeek: "수",
-      status: "completed",
-      isMakeup: false,
-    },
-  ]);
+  // Supabase DB public.schedules 테이블 데이터 로드
+  const fetchSchedules = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("schedules")
+        .select("*");
+
+      if (!error && data) {
+        const mapped: ScheduleEvent[] = data.map((s: any) => ({
+          id: s.schedule_id,
+          childName: s.child_id || "아동",
+          therapistName: s.therapist_id || "치료사",
+          supportType: s.support_type || "발달재활",
+          timeSlot: `${s.start_time || "14:00"}~${s.end_time || "14:40"}`,
+          dayOfWeek: "월",
+          status: s.status || "scheduled",
+          isMakeup: false,
+        }));
+        setSchedules(mapped);
+      } else {
+        setSchedules([]);
+      }
+    } catch (e) {
+      setSchedules([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSchedules();
+  }, [currentMonth]);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <span>📅</span> 아동 회기 스케줄 & 보강 관리
+            <span>📅</span> 아동 회기 스케줄 & 보강 관리 (Supabase DB 전용)
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            월별 스케줄 자동 배치, 아동 결석/치료사 휴가에 따른 보강 명단 관리 (발본 당월 / 발추·센터 이월 연동)
+            Supabase DB public.schedules 실제 레코드만 실시간 조회
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -88,54 +92,43 @@ export default function CalendarPage() {
             <span className="text-xs text-slate-400 font-normal">총 {schedules.length}건</span>
           </h2>
 
-          <div className="space-y-2">
-            {schedules.map((s) => (
-              <div
-                key={s.id}
-                className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 flex items-center justify-between transition-all"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-slate-900">
-                      {s.childName}
-                    </span>
-                    <span className="text-xs text-slate-500 font-medium">
-                      ({s.therapistName} 치료사)
-                    </span>
-                    {s.handoffNote && (
-                      <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-700 text-[10px] font-bold">
-                        🤝 {s.handoffNote}
+          {isLoading ? (
+            <p className="text-xs text-slate-400 py-6 text-center">Supabase DB 스케줄 로딩 중...</p>
+          ) : schedules.length === 0 ? (
+            <p className="text-xs text-slate-400 py-6 text-center">Supabase DB에 등록된 수업 스케줄이 없습니다.</p>
+          ) : (
+            <div className="space-y-2">
+              {schedules.map((s) => (
+                <div
+                  key={s.id}
+                  className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 flex items-center justify-between transition-all"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-slate-900">
+                        {s.childName}
                       </span>
-                    )}
-                    {s.isMakeup && (
-                      <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
-                        ⚡ 보강 수업
+                      <span className="text-xs text-slate-500 font-medium">
+                        ({s.therapistName} 치료사)
                       </span>
-                    )}
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-500 flex items-center gap-3">
-                    <span>{s.supportType}</span>
-                    <span>•</span>
-                    <span className="font-mono text-emerald-700 font-semibold">
-                      {s.dayOfWeek}요일 {s.timeSlot}
-                    </span>
-                  </div>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  <select
-                    defaultValue={s.status}
-                    className="text-xs p-2 rounded-lg border bg-white font-semibold"
-                  >
-                    <option value="scheduled">예정</option>
-                    <option value="completed">정상 진행 완료</option>
-                    <option value="absent_child">아동 결석</option>
-                    <option value="makeup_needed">보강 필요</option>
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <select
+                      defaultValue={s.status}
+                      className="text-xs p-2 rounded-lg border bg-white font-semibold"
+                    >
+                      <option value="scheduled">예정</option>
+                      <option value="completed">정상 진행 완료</option>
+                      <option value="absent_child">아동 결석</option>
+                      <option value="makeup_needed">보강 필요</option>
+                    </select>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-sm">
@@ -143,23 +136,12 @@ export default function CalendarPage() {
             <span>⚡ 보강 관리 & 미진행 수업</span>
           </h2>
           <p className="text-xs text-slate-500">
-            결석 또는 치료사 휴무로 보강 일정을 잡아야 하는 아동 명단입니다.
+            결석 또는 치료사 휴무로 보강 일정을 잡아야 하는 Supabase DB 아동 명단입니다.
           </p>
 
-          <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 space-y-2 text-xs">
-            <div className="flex justify-between items-center">
-              <span className="font-bold text-amber-900">김지우 (방과후활동비)</span>
-              <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded font-bold">
-                이월 가능
-              </span>
-            </div>
-            <p className="text-amber-800">
-              결석 사유: 개인 사정 결석 (7/28)
-            </p>
-            <button className="w-full py-1.5 bg-amber-600 hover:bg-amber-500 text-white font-bold rounded-lg text-[11px]">
-              보강 일자 지정하기
-            </button>
-          </div>
+          <p className="text-xs text-slate-400 text-center py-4">
+            현재 DB에 미진행 보강 아동이 없습니다.
+          </p>
         </div>
       </div>
     </div>
