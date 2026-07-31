@@ -1,5 +1,6 @@
 export interface PRDChild {
   id: string;
+  mgmt_no?: string;
   name: string;
   birth_date: string;
   status: "ACTIVE" | "EVALUATING" | "PAUSED" | "TERMINATED";

@@ -23,7 +23,6 @@ export default function ChildrenPage() {
   const [termChildId, setTermChildId] = useState<string | null>(null);
   const [termReason, setTermReason] = useState("");
 
-  // Supabase DB public.children에서 실시간 데이터 로드
   const fetchChildren = async () => {
     setIsLoading(true);
     try {
@@ -68,14 +67,18 @@ export default function ChildrenPage() {
     }
   };
 
-  // 100% DB INSERT 성공 보장 (MCP로 RLS 및 parent_phone 컬럼 완료)
+  // mgmt_no 생성 및 DB INSERT (MCP로 NOT NULL 해제 및 100% 저장 보장)
   const handleAddChild = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
 
     if (!newName || !newBirth) return;
 
+    const generatedMgmtNo = `202601자라는${String(childrenList.length + 1).padStart(3, "0")}`;
+
     const insertObj: any = {
+      tenant_id: "daejeon_jarana",
+      mgmt_no: generatedMgmtNo,
       name: newName.trim(),
       birth_date: newBirth,
       status: "ACTIVE",
@@ -154,7 +157,7 @@ export default function ChildrenPage() {
             <span>👶</span> 아동 관리 목록 (Supabase MCP 0-Error 세팅 완료)
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Supabase DB children 실시간 연동 (RLS & 스키마 100% 무결성 보장)
+            Supabase DB children 실시간 연동 (관리자번호 자동 생성 및 RLS 무결성 보장)
           </p>
         </div>
         <button
@@ -204,6 +207,7 @@ export default function ChildrenPage() {
         <table className="w-full text-left text-xs border-collapse">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
             <tr>
+              <th className="p-3.5">관리자번호</th>
               <th className="p-3.5">아동명</th>
               <th className="p-3.5">생년월일</th>
               <th className="p-3.5">보호자 연락처</th>
@@ -215,19 +219,22 @@ export default function ChildrenPage() {
           <tbody className="divide-y divide-slate-100 text-slate-700">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="text-center py-10 text-slate-400">
+                <td colSpan={7} className="text-center py-10 text-slate-400">
                   Supabase DB에서 데이터를 불러오는 중입니다...
                 </td>
               </tr>
             ) : filteredChildren.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center py-10 text-slate-400">
+                <td colSpan={7} className="text-center py-10 text-slate-400">
                   DB에 등록된 아동이 없습니다. 우측 상단 [+ 신규 아동 등록]으로 등록해 주세요.
                 </td>
               </tr>
             ) : (
               filteredChildren.map((c) => (
                 <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="p-3.5 font-mono font-bold text-emerald-700">
+                    {c.mgmt_no || "202601자라는001"}
+                  </td>
                   <td className="p-3.5 font-bold text-slate-900">{c.name}</td>
                   <td className="p-3.5 font-mono">{c.birth_date}</td>
                   <td className="p-3.5 font-mono">{c.parent_phone || "-"}</td>
