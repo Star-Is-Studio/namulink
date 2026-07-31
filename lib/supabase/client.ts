@@ -5,6 +5,11 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable
 
 export function createClient() {
   return createSupabaseClient(supabaseUrl, supabaseKey, {
+    global: {
+      headers: {
+        apikey: supabaseKey,
+      },
+    },
     auth: {
       persistSession: true,
       autoRefreshToken: true,
