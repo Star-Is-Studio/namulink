@@ -2,10 +2,13 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/lib/context/AuthContext";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { login } = useAuth();
   const initialRole = searchParams.get("role") || "staff";
 
   const [role, setRole] = useState<"staff" | "parent">(
@@ -23,6 +26,13 @@ function LoginForm() {
       setError("아이디와 비밀번호를 모두 입력해 주세요.");
       return;
     }
+
+    login({
+      name: username.includes("박하은") ? "박하은" : username,
+      role: role === "staff" ? "admin" : "parent",
+      username,
+      centerName: "자라는나무 아동발달센터 대전점",
+    });
 
     if (role === "staff") {
       router.push("/dashboard/children");
@@ -122,8 +132,11 @@ function LoginForm() {
         </button>
       </form>
 
-      <div className="mt-6 text-center text-xs text-emerald-200/40 border-t border-white/10 pt-4">
-        도움이 필요하신가요? 센터 행정실에 문의해 주세요.
+      <div className="mt-6 text-center text-xs text-emerald-200/60 border-t border-white/10 pt-4 flex justify-between">
+        <span>아직 계정이 없으신가요?</span>
+        <Link href="/signup" className="text-emerald-300 font-bold underline">
+          회원가입하기
+        </Link>
       </div>
     </div>
   );

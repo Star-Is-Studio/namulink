@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/lib/context/AuthContext";
 
 const navItems = [
   { href: "/dashboard/children", label: "아동 관리", icon: "👶" },
@@ -20,6 +21,13 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -30,20 +38,24 @@ export default function DashboardLayout({
             <span>🌿</span>
             <span>나무링크</span>
             <span className="text-xs bg-emerald-700 px-2 py-0.5 rounded text-emerald-200 font-normal">
-              대전점
+              {user?.centerName || "대전점"}
             </span>
           </Link>
 
           <div className="flex items-center gap-4 text-xs">
-            <span className="bg-emerald-900/60 px-3 py-1.5 rounded-full border border-emerald-600/40 text-emerald-100">
-              👩‍⚕️ 박하은 (행정관리자)
+            <span className="bg-emerald-900/60 px-3 py-1.5 rounded-full border border-emerald-600/40 text-emerald-100 flex items-center gap-1.5">
+              <span>👩‍⚕️</span>
+              <span className="font-bold">{user?.name || "박하은"}</span>
+              <span className="text-[11px] text-emerald-300">
+                ({user?.role === "admin" ? "행정관리자" : user?.role === "therapist" ? "치료사" : "직원"})
+              </span>
             </span>
-            <Link
-              href="/login"
-              className="text-emerald-200 hover:text-white transition-colors"
+            <button
+              onClick={handleLogout}
+              className="text-emerald-200 hover:text-white transition-colors border border-emerald-700/60 px-2.5 py-1 rounded"
             >
               로그아웃
-            </Link>
+            </button>
           </div>
         </div>
 
