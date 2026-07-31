@@ -2,33 +2,30 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
-
-interface DBChild {
-  child_id: string;
-  mgmt_no: string;
-  name: string;
-  birth_date: string;
-  gender: string;
-  status: string;
-  inflow_channel?: string;
-  created_at?: string;
-}
+import { PRDChild } from "@/lib/types/database.types";
 
 export default function ChildrenPage() {
   const supabase = createClient();
-  const [childrenList, setChildrenList] = useState<DBChild[]>([]);
+  const [childrenList, setChildrenList] = useState<PRDChild[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
+  // 신규 등록 모달 상태
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [newName, setNewName] = useState("");
   const [newBirth, setNewBirth] = useState("");
-  const [newGender, setNewGender] = useState("남");
+  const [newPhone, setNewPhone] = useState("");
+  const [newAddress, setNewAddress] = useState("");
   const [newInflow, setNewInflow] = useState("본인");
+  const [dupWarning, setDupWarning] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Supabase DB public.children에서만 실제 데이터 로드
+  // 종결 사유 입력 모달 상태 (PRD 요구사항: 종결 시 종결 사유 필수)
+  const [termChildId, setTermChildId] = useState<string | null>(null);
+  const [termReason, setTermReason] = useState("");
+
+  // 1. Supabase DB children 테이블에서만 실제 데이터 조회
   const fetchChildren = async () => {
     setIsLoading(true);
     try {
@@ -38,13 +35,11 @@ export default function ChildrenPage() {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("DB Fetch Error:", error.message);
         setChildrenList([]);
       } else {
         setChildrenList(data || []);
       }
-    } catch (e: any) {
-      console.error(e);
+    } catch {
       setChildrenList([]);
     } finally {
       setIsLoading(false);
@@ -55,30 +50,41 @@ export default function ChildrenPage() {
     fetchChildren();
   }, []);
 
-  const filteredChildren = childrenList.filter((c) => {
-    const matchesSearch =
-      c.name.includes(searchTerm) || (c.mgmt_no && c.mgmt_no.includes(searchTerm));
-    const matchesStatus =
-      statusFilter === "all" || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // PRD 중복 방지 메커니즘: 동일 이름 + 생년월일 실시간 검증
+  const handleNameOrBirthChange = (nameVal: string, birthVal: string) => {
+    setNewName(nameVal);
+    setNewBirth(birthVal);
 
-  // DB 저장(INSERT) 성공 시에만 DB를 다시 읽어와 화면에 반영
+    if (nameVal.trim() && birthVal) {
+      const dup = childrenList.find(
+        (c) => c.name.trim() === nameVal.trim() && c.birth_date === birthVal
+      );
+      if (dup) {
+        setDupWarning(
+          `⚠️ [중복 경고] 동일한 이름과 생년월일을 가진 아동(${dup.name}, ${dup.birth_date})이 DB에 이미 등록되어 있습니다.`
+        );
+      } else {
+        setDupWarning("");
+      }
+    } else {
+      setDupWarning("");
+    }
+  };
+
+  // DB 아동 신규 등록 (100% DB INSERT 성공 시에만 표출)
   const handleAddChild = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
-    if (!newName || !newBirth) return;
 
-    const newMgmtNo = `202601자라는${String(childrenList.length + 1).padStart(3, "0")}`;
+    if (!newName || !newBirth) return;
 
     const { error } = await supabase.from("children").insert([
       {
-        tenant_id: "daejeon_jarana",
-        mgmt_no: newMgmtNo,
         name: newName.trim(),
         birth_date: newBirth,
-        gender: newGender,
-        status: "치료중",
+        status: "ACTIVE",
+        parent_phone: newPhone.trim(),
+        address: newAddress.trim(),
         inflow_channel: newInflow,
       },
     ]);
@@ -89,118 +95,176 @@ export default function ChildrenPage() {
       setIsModalOpen(false);
       setNewName("");
       setNewBirth("");
-      // DB 실제 저장 완료 후 DB 재조회로 표출
+      setNewPhone("");
+      setNewAddress("");
+      setDupWarning("");
       await fetchChildren();
     }
   };
 
+  // 아동 상태 변경 (종결 전환 시 사유 필수)
+  const handleStatusChange = async (childId: string, newStatus: string) => {
+    if (newStatus === "TERMINATED") {
+      setTermChildId(childId);
+      setTermReason("");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("children")
+      .update({ status: newStatus })
+      .eq("id", childId);
+
+    if (!error) {
+      fetchChildren();
+    }
+  };
+
+  // 종결 처리 완료
+  const confirmTermination = async () => {
+    if (!termChildId || !termReason.trim()) {
+      alert("종결 사유를 필수 입력해 주세요.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("children")
+      .update({
+        status: "TERMINATED",
+        termination_reason: termReason.trim(),
+      })
+      .eq("id", termChildId);
+
+    if (!error) {
+      setTermChildId(null);
+      setTermReason("");
+      fetchChildren();
+    } else {
+      alert(`종결 실패: ${error.message}`);
+    }
+  };
+
+  const filteredChildren = childrenList.filter((c) => {
+    const matchesSearch = c.name.includes(searchTerm);
+    const matchesStatus =
+      statusFilter === "all" || c.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
   return (
     <div className="space-y-6">
+      {/* Title Bar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <span>👶</span> 아동 관리 목록 (Supabase DB 전용)
+            <span>👶</span> [PRD] 아동 통합 관리 모듈
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Supabase DB public.children 실제 레코드만 실시간 조회 및 저장
+            신규 ➔ 평가 ➔ 치료중 ➔ 휴식 ➔ 종결 히스토리 및 중복 방지 검증 (Supabase DB 전용)
           </p>
         </div>
         <button
           onClick={() => {
             setIsModalOpen(true);
             setErrorMsg("");
+            setDupWarning("");
           }}
-          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-900/20 transition-all"
+          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md transition-all"
         >
           + 신규 아동 등록
         </button>
       </div>
 
+      {/* Filter & Search */}
       <div className="flex flex-wrap items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200">
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            placeholder="아동명 또는 관리자번호 검색..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs w-64 focus:outline-none focus:border-emerald-500"
-          />
-        </div>
+        <input
+          type="text"
+          placeholder="아동명 검색..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="px-3.5 py-2 border border-slate-300 rounded-lg text-xs w-64 focus:outline-none focus:border-emerald-500"
+        />
 
         <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg text-xs">
-          {["all", "치료중", "휴식", "종결"].map((st) => (
+          {[
+            { key: "all", label: "전체" },
+            { key: "ACTIVE", label: "치료중" },
+            { key: "EVALUATING", label: "평가중" },
+            { key: "PAUSED", label: "휴식" },
+            { key: "TERMINATED", label: "종결" },
+          ].map((st) => (
             <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
+              key={st.key}
+              onClick={() => setStatusFilter(st.key)}
               className={`px-3 py-1.5 rounded-md font-medium transition-all ${
-                statusFilter === st
+                statusFilter === st.key
                   ? "bg-white text-emerald-800 shadow-sm font-bold"
                   : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              {st === "all" ? "전체 보기" : st}
+              {st.label}
             </button>
           ))}
         </div>
       </div>
 
+      {/* Children Table */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
         <table className="w-full text-left text-xs border-collapse">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
             <tr>
-              <th className="p-3.5">관리자번호</th>
               <th className="p-3.5">아동명</th>
-              <th className="p-3.5">생년월일 / 성별</th>
+              <th className="p-3.5">생년월일</th>
+              <th className="p-3.5">보호자 연락처</th>
               <th className="p-3.5">유입경로</th>
-              <th className="p-3.5">상태</th>
-              <th className="p-3.5 text-right">관리</th>
+              <th className="p-3.5">상태 변경</th>
+              <th className="p-3.5 text-right">종결 사유 / 관리</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
             {isLoading ? (
               <tr>
                 <td colSpan={6} className="text-center py-10 text-slate-400">
-                  Supabase DB에서 실제 아동 데이터를 로딩 중입니다...
+                  Supabase DB에서 아동 데이터를 불러오는 중입니다...
                 </td>
               </tr>
             ) : filteredChildren.length === 0 ? (
               <tr>
                 <td colSpan={6} className="text-center py-10 text-slate-400">
-                  Supabase DB에 저장된 아동이 없습니다. [+ 신규 아동 등록]을 눌러 DB에 등록해 주세요.
+                  DB에 등록된 아동이 없습니다. [+ 신규 아동 등록]으로 등록해 주세요.
                 </td>
               </tr>
             ) : (
               filteredChildren.map((c) => (
-                <tr key={c.child_id} className="hover:bg-slate-50/80 transition-colors">
-                  <td className="p-3.5 font-mono font-bold text-emerald-700">
-                    {c.mgmt_no}
-                  </td>
+                <tr key={c.id} className="hover:bg-slate-50 transition-colors">
                   <td className="p-3.5 font-bold text-slate-900">{c.name}</td>
+                  <td className="p-3.5 font-mono">{c.birth_date}</td>
+                  <td className="p-3.5 font-mono">{c.parent_phone || "-"}</td>
                   <td className="p-3.5">
-                    {c.birth_date} ({c.gender})
-                  </td>
-                  <td className="p-3.5">
-                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
+                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600">
                       {c.inflow_channel || "본인"}
                     </span>
                   </td>
                   <td className="p-3.5">
-                    <span
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                        c.status === "치료중"
-                          ? "bg-emerald-100 text-emerald-800"
-                          : c.status === "휴식"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
+                    <select
+                      value={c.status}
+                      onChange={(e) => handleStatusChange(c.id, e.target.value)}
+                      className="p-1.5 rounded border border-slate-300 bg-white text-xs font-bold"
                     >
-                      {c.status}
-                    </span>
+                      <option value="ACTIVE">치료중</option>
+                      <option value="EVALUATING">평가중</option>
+                      <option value="PAUSED">휴식</option>
+                      <option value="TERMINATED">종결 (종결사유 필수)</option>
+                    </select>
                   </td>
-                  <td className="p-3.5 text-right space-x-2">
-                    <button className="px-2.5 py-1 border border-slate-300 rounded hover:bg-slate-100 text-[11px]">
-                      프로필
-                    </button>
+                  <td className="p-3.5 text-right font-medium">
+                    {c.status === "TERMINATED" ? (
+                      <span className="text-rose-600 font-bold bg-rose-50 px-2 py-1 rounded">
+                        사유: {c.termination_reason || "사유 미입력"}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
                   </td>
                 </tr>
               ))
@@ -209,11 +273,12 @@ export default function ChildrenPage() {
         </table>
       </div>
 
+      {/* New Child Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6 space-y-4">
             <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-bold text-slate-800">👶 Supabase DB 신규 아동 등록</h3>
+              <h3 className="font-bold text-slate-800">👶 Supabase DB 아동 신규 등록</h3>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 text-lg"
@@ -229,34 +294,38 @@ export default function ChildrenPage() {
                   type="text"
                   required
                   value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
+                  onChange={(e) => handleNameOrBirthChange(e.target.value, newBirth)}
                   placeholder="예: 김현우"
                   className="w-full p-2 border rounded-lg"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold mb-1">생년월일 *</label>
-                  <input
-                    type="date"
-                    required
-                    value={newBirth}
-                    onChange={(e) => setNewBirth(e.target.value)}
-                    className="w-full p-2 border rounded-lg"
-                  />
+              <div>
+                <label className="block font-semibold mb-1">생년월일 *</label>
+                <input
+                  type="date"
+                  required
+                  value={newBirth}
+                  onChange={(e) => handleNameOrBirthChange(newName, e.target.value)}
+                  className="w-full p-2 border rounded-lg"
+                />
+              </div>
+
+              {dupWarning && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 leading-relaxed font-semibold">
+                  {dupWarning}
                 </div>
-                <div>
-                  <label className="block font-semibold mb-1">성별</label>
-                  <select
-                    value={newGender}
-                    onChange={(e) => setNewGender(e.target.value)}
-                    className="w-full p-2 border rounded-lg bg-white"
-                  >
-                    <option value="남">남</option>
-                    <option value="여">여</option>
-                  </select>
-                </div>
+              )}
+
+              <div>
+                <label className="block font-semibold mb-1">보호자 연락처</label>
+                <input
+                  type="tel"
+                  value={newPhone}
+                  onChange={(e) => setNewPhone(e.target.value)}
+                  placeholder="010-0000-0000"
+                  className="w-full p-2 border rounded-lg"
+                />
               </div>
 
               <div>
@@ -291,10 +360,46 @@ export default function ChildrenPage() {
                   type="submit"
                   className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-500"
                 >
-                  Supabase DB에 저장
+                  Supabase DB 저장
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Termination Reason Modal */}
+      {termChildId && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl shadow-xl p-6 space-y-4">
+            <h3 className="font-bold text-slate-800 text-sm">
+              🛑 아동 종결 처리 (종결 사유 필수)
+            </h3>
+            <p className="text-xs text-slate-500">
+              PRD 지침에 따라 종결 시에는 종결 사유를 필수 입력해야 합니다.
+            </p>
+            <textarea
+              rows={3}
+              required
+              value={termReason}
+              onChange={(e) => setTermReason(e.target.value)}
+              placeholder="예: 치료 목표 100% 달성하여 종결, 타지역 이사 등..."
+              className="w-full p-2.5 border rounded-xl text-xs focus:outline-none focus:border-rose-500"
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setTermChildId(null)}
+                className="px-3 py-1.5 border rounded-lg text-xs"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmTermination}
+                className="px-4 py-1.5 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-500"
+              >
+                종결 확인
+              </button>
+            </div>
           </div>
         </div>
       )}
