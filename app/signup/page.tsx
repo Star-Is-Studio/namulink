@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/context/AuthContext";
 
 export default function SignupPage() {
   const router = useRouter();
   const { signup } = useAuth();
+  const supabase = createClient();
 
   const [role, setRole] = useState<"staff" | "parent">("staff");
   const [name, setName] = useState("");
@@ -16,9 +18,10 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [centerCode, setCenterCode] = useState("daejeon_jarana");
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -32,51 +35,79 @@ export default function SignupPage() {
       return;
     }
 
-    // 회원가입 유저 목록에 저장
-    const newUser = {
-      name,
-      role: role === "staff" ? ("admin" as const) : ("parent" as const),
-      username,
-      password_hash: password,
-      phone,
-      centerName: "자라는나무 아동발달센터 대전점",
-    };
+    setIsLoading(true);
 
     try {
-      const existing = JSON.parse(
-        localStorage.getItem("namulink_registered_users") || "[]"
-      );
-      localStorage.setItem(
-        "namulink_registered_users",
-        JSON.stringify([...existing, newUser])
-      );
-    } catch {
-      // ignore
-    }
+      // 1. Supabase DB tenants 테이블에서 centerCode 조회
+      let tenantId = "daejeon_jarana";
+      const { data: tenantData } = await supabase
+        .from("tenants")
+        .select("tenant_id")
+        .eq("code", centerCode)
+        .single();
 
-    // 회원가입 성공 및 세션 저장
-    signup(newUser);
+      if (tenantData) {
+        tenantId = tenantData.tenant_id;
+      }
 
-    if (role === "staff") {
-      router.push("/dashboard/children");
-    } else {
-      router.push("/parent-home");
+      const assignedRole = role === "staff" ? "admin" : "parent";
+
+      // 2. Supabase DB public.users 테이블에 실제 레코드 등록
+      const { data: newUser, error: dbError } = await supabase
+        .from("users")
+        .insert([
+          {
+            tenant_id: tenantId,
+            username: username.trim(),
+            password_hash: password.trim(),
+            name: name.trim(),
+            role: assignedRole,
+            phone: phone.trim(),
+            is_active: true,
+          },
+        ])
+        .select()
+        .single();
+
+      if (dbError) {
+        if (dbError.code === "23505") {
+          throw new Error("이미 존재하는 아이디입니다. 다른 아이디를 사용해 주세요.");
+        }
+        throw new Error(`Supabase DB 등록 실패: ${dbError.message}`);
+      }
+
+      // 3. 회원가입 성공 및 세션 적용
+      signup({
+        name: newUser.name,
+        role: newUser.role,
+        username: newUser.username,
+        phone: newUser.phone,
+        centerName: "자라는나무 아동발달센터 대전점",
+      });
+
+      if (assignedRole === "parent") {
+        router.push("/parent-home");
+      } else {
+        router.push("/dashboard/children");
+      }
+    } catch (err: any) {
+      setError(err.message || "회원가입 중 오류가 발생했습니다.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-green-800 to-teal-950 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-8 shadow-2xl text-white">
-        {/* Header */}
         <div className="text-center space-y-2 mb-6">
           <span className="text-3xl">🌿</span>
           <h1 className="text-2xl font-bold text-white">나무링크 회원가입</h1>
           <p className="text-xs text-emerald-200/70">
-            신규 계정 생성 및 자라는나무 아동발달센터 연동
+            Supabase 데이터베이스 연동 계정 생성
           </p>
         </div>
 
-        {/* Role Tab */}
         <div className="flex bg-black/20 p-1 rounded-xl mb-6">
           <button
             type="button"
@@ -102,7 +133,6 @@ export default function SignupPage() {
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSignup} className="space-y-3.5 text-xs">
           <div>
             <label className="block font-semibold text-emerald-100 mb-1">
@@ -189,20 +219,21 @@ export default function SignupPage() {
           </div>
 
           {error && (
-            <p className="text-xs text-rose-400 bg-rose-950/40 p-2.5 rounded-lg border border-rose-500/30">
+            <p className="text-xs text-rose-300 bg-rose-950/60 p-2.5 rounded-lg border border-rose-500/30">
               {error}
             </p>
           )}
 
           <button
             type="submit"
+            disabled={isLoading}
             className={`w-full py-3 rounded-xl font-bold text-xs transition-all shadow-lg mt-2 ${
               role === "staff"
                 ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/50"
                 : "bg-teal-600 hover:bg-teal-500 shadow-teal-900/50"
-            }`}
+            } ${isLoading ? "opacity-50 cursor-not-allowed" : ""}`}
           >
-            회원가입 완료 및 서비스 시작
+            {isLoading ? "Supabase DB 등록 중..." : "회원가입 완료 및 서비스 시작"}
           </button>
         </form>
 

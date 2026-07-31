@@ -1,53 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 
-interface DummyChild {
-  id: string;
+interface DBChild {
+  child_id: string;
   mgmt_no: string;
   name: string;
-  birth: string;
+  birth_date: string;
   gender: string;
-  guardian: string;
-  phone: string;
-  status: "치료중" | "휴식" | "종결";
-  inflow_channel: string;
-  therapies: { support: string; therapist: string; cycle: string; fee: number }[];
+  status: string;
+  inflow_channel?: string;
+  created_at?: string;
 }
 
 export default function ChildrenPage() {
-  const [childrenList, setChildrenList] = useState<DummyChild[]>([
-    {
-      id: "ch_1",
-      mgmt_no: "202601자라는001",
-      name: "이지호",
-      birth: "2023-09-03",
-      gender: "남",
-      guardian: "박운지(모)",
-      phone: "010-8807-5299",
-      status: "치료중",
-      inflow_channel: "아웃리치",
-      therapies: [
-        { support: "발달재활서비스", therapist: "이채린", cycle: "월,수", fee: 65000 },
-        { support: "센터비용", therapist: "정다혜", cycle: "금", fee: 50000 },
-      ],
-    },
-    {
-      id: "ch_2",
-      mgmt_no: "202601자라는002",
-      name: "김지우",
-      birth: "2022-06-28",
-      gender: "여",
-      guardian: "이진실(모)",
-      phone: "010-9496-7630",
-      status: "치료중",
-      inflow_channel: "소개",
-      therapies: [
-        { support: "방과후활동비", therapist: "신슬기", cycle: "화,목", fee: 60000 },
-      ],
-    },
-  ]);
-
+  const supabase = createClient();
+  const [childrenList, setChildrenList] = useState<DBChild[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -55,42 +25,78 @@ export default function ChildrenPage() {
   const [newName, setNewName] = useState("");
   const [newBirth, setNewBirth] = useState("");
   const [newGender, setNewGender] = useState("남");
-  const [newGuardian, setNewGuardian] = useState("");
-  const [newPhone, setNewPhone] = useState("");
   const [newInflow, setNewInflow] = useState("본인");
+
+  // 1. Supabase DB public.children에서 실시간 데이터 로드
+  const fetchChildren = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("children")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (!error && data) {
+        setChildrenList(data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchChildren();
+  }, []);
 
   const filteredChildren = childrenList.filter((c) => {
     const matchesSearch =
-      c.name.includes(searchTerm) || c.mgmt_no.includes(searchTerm);
+      c.name.includes(searchTerm) || (c.mgmt_no && c.mgmt_no.includes(searchTerm));
     const matchesStatus =
       statusFilter === "all" || c.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
-  const handleAddChild = (e: React.FormEvent) => {
+  // 2. Supabase DB public.children에 신규 아동 레코드 INSERT
+  const handleAddChild = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName || !newBirth) return;
 
-    const newMgmtNo = `202601자라는${String(childrenList.length + 1).padStart(3, "0")}`;
-    const newChild: DummyChild = {
-      id: `ch_${Date.now()}`,
-      mgmt_no: newMgmtNo,
-      name: newName,
-      birth: newBirth,
-      gender: newGender,
-      guardian: newGuardian,
-      phone: newPhone,
-      status: "치료중",
-      inflow_channel: newInflow,
-      therapies: [],
-    };
+    // 대전점 tenant_id 조회
+    let tenantId = "daejeon_jarana";
+    const { data: tenantData } = await supabase
+      .from("tenants")
+      .select("tenant_id")
+      .eq("code", "daejeon_jarana")
+      .single();
 
-    setChildrenList([newChild, ...childrenList]);
-    setIsModalOpen(false);
-    setNewName("");
-    setNewBirth("");
-    setNewGuardian("");
-    setNewPhone("");
+    if (tenantData) {
+      tenantId = tenantData.tenant_id;
+    }
+
+    const newMgmtNo = `202601자라는${String(childrenList.length + 1).padStart(3, "0")}`;
+
+    const { error } = await supabase.from("children").insert([
+      {
+        tenant_id: tenantId,
+        mgmt_no: newMgmtNo,
+        name: newName.trim(),
+        birth_date: newBirth,
+        gender: newGender,
+        status: "치료중",
+        inflow_channel: newInflow,
+      },
+    ]);
+
+    if (!error) {
+      setIsModalOpen(false);
+      setNewName("");
+      setNewBirth("");
+      fetchChildren(); // 갱신
+    } else {
+      alert(`아동 등록 오류: ${error.message}`);
+    }
   };
 
   return (
@@ -98,10 +104,10 @@ export default function ChildrenPage() {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
           <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <span>👶</span> 아동 관리 목록
+            <span>👶</span> 아동 관리 목록 (Supabase DB 연동)
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            신규 아동 상담/유입경로 등록부터 치료 과목 및 종결 이력 통합 관리
+            Supabase DB public.children 데이터 실시간 조회 및 등록
           </p>
         </div>
         <button
@@ -147,56 +153,38 @@ export default function ChildrenPage() {
               <th className="p-3.5">관리자번호</th>
               <th className="p-3.5">아동명</th>
               <th className="p-3.5">생년월일 / 성별</th>
-              <th className="p-3.5">보호자 / 연락처</th>
               <th className="p-3.5">유입경로</th>
-              <th className="p-3.5">담당 치료 및 시간</th>
               <th className="p-3.5">상태</th>
               <th className="p-3.5 text-right">관리</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-700">
-            {filteredChildren.length === 0 ? (
+            {isLoading ? (
               <tr>
-                <td colSpan={8} className="text-center py-10 text-slate-400">
-                  등록된 아동이 없습니다.
+                <td colSpan={6} className="text-center py-10 text-slate-400">
+                  Supabase DB에서 아동 데이터를 로딩 중입니다...
+                </td>
+              </tr>
+            ) : filteredChildren.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center py-10 text-slate-400">
+                  DB에 등록된 아동이 없습니다. 우측 상단 [+ 신규 아동 등록]을 통해 등록해 주세요.
                 </td>
               </tr>
             ) : (
               filteredChildren.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50/80 transition-colors">
+                <tr key={c.child_id} className="hover:bg-slate-50/80 transition-colors">
                   <td className="p-3.5 font-mono font-bold text-emerald-700">
                     {c.mgmt_no}
                   </td>
                   <td className="p-3.5 font-bold text-slate-900">{c.name}</td>
                   <td className="p-3.5">
-                    {c.birth} ({c.gender})
-                  </td>
-                  <td className="p-3.5">
-                    <div>{c.guardian}</div>
-                    <div className="text-[11px] text-slate-400 font-mono">{c.phone}</div>
+                    {c.birth_date} ({c.gender})
                   </td>
                   <td className="p-3.5">
                     <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium">
-                      {c.inflow_channel}
+                      {c.inflow_channel || "본인"}
                     </span>
-                  </td>
-                  <td className="p-3.5">
-                    {c.therapies.length === 0 ? (
-                      <span className="text-slate-400">등록 과목 없음</span>
-                    ) : (
-                      <div className="space-y-1">
-                        {c.therapies.map((t, idx) => (
-                          <div key={idx} className="flex items-center gap-1.5">
-                            <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
-                              {t.support}
-                            </span>
-                            <span className="text-slate-600">
-                              {t.therapist} ({t.cycle})
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </td>
                   <td className="p-3.5">
                     <span
@@ -227,7 +215,7 @@ export default function ChildrenPage() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-xl p-6 space-y-4">
             <div className="flex justify-between items-center border-b pb-3">
-              <h3 className="font-bold text-slate-800">👶 신규 아동 등록</h3>
+              <h3 className="font-bold text-slate-800">👶 Supabase DB 아동 신규 등록</h3>
               <button
                 onClick={() => setIsModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 text-lg"
@@ -274,28 +262,6 @@ export default function ChildrenPage() {
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">보호자 성함 (관계)</label>
-                <input
-                  type="text"
-                  value={newGuardian}
-                  onChange={(e) => setNewGuardian(e.target.value)}
-                  placeholder="예: 홍부모(모)"
-                  className="w-full p-2 border rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold mb-1">보호자 연락처</label>
-                <input
-                  type="tel"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="010-0000-0000"
-                  className="w-full p-2 border rounded-lg"
-                />
-              </div>
-
-              <div>
                 <label className="block font-semibold mb-1">유입 경로</label>
                 <select
                   value={newInflow}
@@ -321,7 +287,7 @@ export default function ChildrenPage() {
                   type="submit"
                   className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-500"
                 >
-                  등록 완료
+                  Supabase DB에 저장
                 </button>
               </div>
             </form>
